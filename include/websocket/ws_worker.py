@@ -2,62 +2,75 @@
 
 # sys imports
 import sys
+import threading
+import json
 
 # custom imports 
 from autobahn.twisted.websocket import WebSocketServerProtocol, WebSocketServerFactory
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.python import log
 from twisted.internet import reactor
 
+getFunc = {}
+stopFlag = False
+connectedClients = 0
+
 class WebsocketWorker(WebSocketServerProtocol):
-
-    def __init__(self, getFunc, ip="127.0.0.1", port=9090):
-        """
-        Initializes the WebsocketWorker and passes the func where to get the new data
-        """
-
-        log.startLogging(sys.stdout)
-
-        self.getFunc = getFunc
-        self.stopFlag = False
-        self.port = port
-        self.ip = ip
-        
-        address = "ws://" + self.ip + ":" + str(self.port)
-        self.factory = WebSocketServerFactory(address)
-        self.factory.protocol = WebsocketWorker
-
-    def start_blocking(self):
-
-        reactor.listenTCP(self.port, self.factory)
-        reactor.run()
-
-    def shutdown(self):
-
-        self.stopFlag = True
+    
+    stillConnected = False    
 
     def onConnect(self, request):
-
-        print("Client connecting: {0}".format(request.peer))
+        #global connectedClients
+        global connectedClients
+        connectedClients += 1
+        print("Client connecting: {0}  Clients: {1}".format(request.peer, connectedClients))             
 
     def onOpen(self):
-
         print("WebSocket connection open.")
-
-        self.still_connected = True
+        self.stillConnected = True
         self.sendImageData()   
 
     def onClose(self, wasClean, code, reason):
-        print("WebSocket connection closed: {0}".format(reason))
-        self.still_connected = False
+        global connectedClients
+        connectedClients -= 1
+        print("WebSocket connection closed: {0} Clients: {1}".format(reason, connectedClients))
+        self.stillConnected = False        
 
     def sendImageData(self):
 
-        if not self.still_connected or self.stopFlag:
+        if not self.stillConnected or stopFlag:
             return
-        
-        data = self.getFunc()
-        if data != None:
-            self.sendMessage(data)
-        
-        self.factory.reactor.callLater(0.2, self.sendImageData)
+
+        global connectedClients            
+        data = getFunc()
+
+        if data == None:
+            self.factory.reactor.callLater(0.5, self.sendImageData)
+            return
+
+        dict = {       
+               'img': data,
+               'watching': connectedClients       
+            }
+
+        json_data = json.dumps(dict).encode('utf-8')        
+        self.sendMessage(json_data)
+        self.factory.reactor.callLater(0.1, self.sendImageData)
+       
+
+def shutdown():
+    global stopFlag
+    stopFlag = True
+
+def start(func, ip="127.0.0.1", port=9090):
+
+    address = "ws://" + ip + ":" + str(port)
+    global getFunc
+    getFunc = func
+
+    log.startLogging(sys.stdout)
+
+    factory = WebSocketServerFactory(address)
+    factory.protocol = WebsocketWorker    
+
+    reactor.listenTCP(port, factory)        
+    reactor.run()

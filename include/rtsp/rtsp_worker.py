@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 
-import json
 import sys    
 import threading
 import cv2
 import base64
 import numpy as np
 import os
+import logging
+import time
+
+from utils.image_utils import *
 
 class RtspWorker(threading.Thread):
     
@@ -20,33 +23,53 @@ class RtspWorker(threading.Thread):
         :param use_upd: True to use UDP, False to use TCP
         :param proxies: {"host": "localhost", "port": 8000}
         """
-
         
         self.stopFlag = False
         self.scalePercent = 100
         
         threading.Thread.__init__(self)
+
         self.ip = ip
         self.username = username
         self.password = password
         self.port = port
-        self.hasDisplay = show
-        
+        self.hasDisplay = show        
+        self.startUp = True
+                
         self.url = "rtsp://" + self.username + ":" + self.password + "@" + \
             self.ip + ":" + str(self.port) + "//h264Preview_01_" + profile
+        
+        self.cap = cv2.VideoCapture(self.url)                
 
-        self.cap = cv2.VideoCapture(self.url)
+    def log_message(self, msg):
+
+        print(msg)
+        logging.info(msg)
 
     def shutdown(self):
 
         self.stopFlag = True
+        self.log_message(f"{self.__class__.__name__}: Shutdown the rtsp stream.")        
 
+    def restart(self):
+        
+        if self.hasDisplay:
+            cv2.destroyAllWindows()            
+
+        self.log_message(f"{self.__class__.__name__}: No valid image. Restarting the rtsp stream.")
+        self.cap.release()
+        self.cap = cv2.VideoCapture(self.url)           
+        
     def run(self):
 
         while not self.stopFlag:
 
             ret, self.frame = self.cap.read()
-
+            
+            if not ret:
+                self.restart()
+                continue
+                        
             try:                
                 if self.hasDisplay:
                     cv2.imshow('frame', self.frame)      
@@ -60,34 +83,29 @@ class RtspWorker(threading.Thread):
             if self.stopFlag:
                 break
         
+        self.stopFlag = True
         self.cap.release()
 
         if self.hasDisplay:
             cv2.destroyAllWindows()
 
-    def resizeImage(self, frame, scalePercentage):
+    def get_image(self):
 
-        width = int(frame.shape[1] * scalePercentage / 100)
-        height = int(frame.shape[0] * scalePercentage / 100)
-        dim = (width, height)
+        if hasattr(self, 'frame'):   
+            return self.frame
+        else:
+            return None
 
-        # resize image
-        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
-        return resized    
-
-    def get(self):
+    def get_data(self):
 
         if hasattr(self, 'frame'):            
             
             if np.shape(self.frame) == ():
                 return None
 
-            data = self.resizeImage(self.frame, self.scalePercent)
-            dict = {       
-                'img': base64.b64encode(cv2.imencode('.jpg', data)[1]).decode()
-            }   
-            retVal = json.dumps(dict).encode('utf-8')
-            return retVal
+            resized_image = resize_image(self.scalePercent, self.frame)
+            data = base64.b64encode(cv2.imencode('.jpg', resized_image)[1]).decode()
+            return data
 
         else:
             return None

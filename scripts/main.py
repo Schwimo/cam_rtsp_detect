@@ -1,14 +1,20 @@
-
 #!/usr/bin/env python3
 
 # system imports
 import argparse
 import sys
+import time
+import threading
+import logging
+import os
 
 # custom iports
 from rtsp.rtsp_worker import RtspWorker
-from websocket.ws_worker import WebsocketWorker
+import websocket.ws_worker
+from detection.animal_detector import Detector
 
+shutdown = False
+            
 if __name__ == '__main__':
 
     # Initialize parser
@@ -27,23 +33,37 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     if not args.Username:
-        print(f"No useranme given, exiting application.")
+        print("No useranme given, exiting application.")
         sys.exit()
 
     if not args.Password:
-        print(f"No password given, exiting application.")
+        print("No password given, exiting application.")
         sys.exit()
 
-    if args.Detection:
-        print(f"Starting the detection... TBD")
+    dirPath = os.path.dirname(os.path.realpath(__file__)) + "/watchdog_log"
+    logging.basicConfig(filename=dirPath, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%d-%m-%Y %H:%M:%S')
+    logging.info("Starting application.")
 
+    # Start the rtsp stream
     rtsp_worker = RtspWorker(args.Address, args.Username, args.Password, args.HideOutput)
     rtsp_worker.start()
 
-    ws_worker = WebsocketWorker(rtsp_worker.get())
-    ws_worker.start_blocking()
+    logging.info("Started the rtsp worker.")
     
-    rtsp_worker.shutdown()
-    ws_worker.shutdown()
+    # Start the detection
+    if args.Detection:        
+        det_worker = Detector(rtsp_worker.get_image)
+        det_worker.start()          
+        logging.info("Movement detection started.")
 
+    # Start the websocket factory    
+    websocket.ws_worker.start(rtsp_worker.get_data)
+
+    # Shutdown everything
+    if args.Detection:        
+        det_worker.shutdown() 
+        
+    rtsp_worker.shutdown()
+    websocket.ws_worker.shutdown()
+    
     print("Shutdown everything and close app.")
