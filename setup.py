@@ -21,7 +21,6 @@ setuptools.setup(name='rtsp_ws_stream',
           'Operating System :: Ubuntu',
       ],
       install_requires=[
-          'opencv-python',
           'numpy',
           'autobahn',
           'twisted'

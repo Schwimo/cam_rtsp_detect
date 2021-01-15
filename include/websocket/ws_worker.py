@@ -5,7 +5,7 @@ import sys
 import threading
 import json
 
-# custom imports 
+# custom imports
 from autobahn.twisted.websocket import WebSocketServerProtocol, WebSocketServerFactory
 from twisted.python import log
 from twisted.internet import reactor
@@ -14,25 +14,30 @@ getFunc = {}
 stopFlag = False
 connectedClients = 0
 
+
 class WebsocketWorker(WebSocketServerProtocol):
-    
-    stillConnected = False    
+
+    stillConnected = False
 
     def onConnect(self, request):
         #global connectedClients
         global connectedClients
         connectedClients += 1
-        print("Client connecting: {0}  Clients: {1}".format(request.peer, connectedClients))             
+        print("Client connecting: {0}  Clients: {1}".format(
+            request.peer, connectedClients))
 
     def onOpen(self):
         print("WebSocket connection open.")
         self.stillConnected = True
-        self.sendImageData()   
+        self.sendImageData()
 
     def onClose(self, wasClean, code, reason):
         global connectedClients
-        connectedClients -= 1
-        print("WebSocket connection closed: {0} Clients: {1}".format(reason, connectedClients))
+
+        if connectedClients >= 1:
+            connectedClients -= 1
+            
+        print("WebSocket connection closed: {0} Clients: {1}".format(reason, connectedClients))        
         self.stillConnected = False        
 
     def sendImageData(self):
