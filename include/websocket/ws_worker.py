@@ -63,7 +63,7 @@ def shutdown():
 
 def start(func, ip="127.0.0.1", port=9090):
 
-    address = "ws://" + ip + ":" + str(port)
+    address = "wss://" + ip + ":" + str(port)
     global getFunc
     getFunc = func
 
