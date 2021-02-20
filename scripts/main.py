@@ -57,7 +57,7 @@ if __name__ == '__main__':
         logging.info("Movement detection started.")
 
     # Start the websocket factory    
-    websocket.ws_worker.start(rtsp_worker.get_data)
+    websocket.ws_worker.start(rtsp_worker.get_data)    
 
     # Shutdown everything
     if args.Detection:        

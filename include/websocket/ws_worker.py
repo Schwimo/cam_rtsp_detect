@@ -4,11 +4,13 @@
 import sys
 import threading
 import json
+import os
 
 # custom imports
 from autobahn.twisted.websocket import WebSocketServerProtocol, WebSocketServerFactory
 from twisted.python import log
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl, endpoints
+from twisted.python.modules import getModule
 
 getFunc = {}
 stopFlag = False
@@ -66,16 +68,19 @@ def shutdown():
     global stopFlag
     stopFlag = True
 
-def start(func, ip="127.0.0.1", port=9090):
+def start(func={}, ip="127.0.0.1", port=9090):
 
-    address = "ws://" + ip + ":" + str(port)
+    address = "wss://" + ip + ":" + str(port)
     global getFunc
     getFunc = func
 
-    log.startLogging(sys.stdout)
+    log.startLogging(sys.stdout)    
+
+    keysPath = os.path.dirname(os.path.realpath(__file__)) + "/keys/"    
+    contextFactory = ssl.DefaultOpenSSLContextFactory(keysPath + "server.key", keysPath + "server.crt")
 
     factory = WebSocketServerFactory(address)
     factory.protocol = WebsocketWorker    
-
-    reactor.listenTCP(port, factory)        
+        
+    reactor.listenSSL(port, factory, contextFactory)    
     reactor.run()
